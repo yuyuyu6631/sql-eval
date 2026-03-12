@@ -1,0 +1,25 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+#app {
+  height: 100vh;
+}
+
+.el-table {
+  font-size: 14px;
+}
+
+.el-dialog__body {
+  padding: 20px;
+}
+
+.el-form-item {
+  margin-bottom: 18px;
+}

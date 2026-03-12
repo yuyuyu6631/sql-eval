@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -sI http://localhost:5173 2>&1 | head -5)",
+      "Bash(netstat -ano | grep -E \"5173|8000\")",
+      "Bash(powershell -Command \"Get-NetTCPConnection -LocalPort 5173,8000 -ErrorAction SilentlyContinue | Select-Object LocalPort,State\")",
+      "Bash(cmd /c \"curl -s http://localhost:5173\" 2>&1 | head -20)",
+      "Bash(curl --connect-timeout 5 http://127.0.0.1:5173 2>&1 | head -10)",
+      "Bash(cd \"D:/数璇项目开发/file/frontend\" && npm run dev 2>&1)",
+      "Bash(sleep 3 && curl -s http://localhost:5173 | head -10)",
+      "Bash(start http://localhost:5174)",
+      "Bash(curl -s http://localhost:8000/health)",
+      "Bash(cd D:/数璇项目开发/file && python test_task.py)",
+      "Bash(curl -s http://localhost:8000/api/tasks)",
+      "Bash(cd D:/数璇项目开发/file && python start_task.py)",
+      "Bash(timeout /t 3 /nobreak >nul && curl -s http://localhost:8000/api/tasks/2)",
+      "Bash(sleep 3 && curl -s http://localhost:8000/api/tasks/2)",
+      "Bash(cd D:/数璇项目开发/file/frontend && npm run dev -- --host)",
+      "Bash(curl -s http://192.168.8.113:8000/health)",
+      "Bash(curl -s -I http://192.168.8.113:5173 | head -1)",
+      "Bash(curl -s http://localhost:8000/api/environments)"
+    ]
+  }
+}
