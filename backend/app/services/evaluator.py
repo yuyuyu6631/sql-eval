@@ -17,6 +17,12 @@ from app.services.sql_analyzer import compare_result_sets
 from app.services.llm_judge import get_llm_diagnosis
 from app.database import AsyncSessionLocal
 from app.config import settings
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+)
 
 # Global shared HTTP client for efficiency and connection pooling
 HTTP_CLIENT = httpx.AsyncClient(timeout=30.0)
@@ -73,19 +79,34 @@ async def run_evaluation(task_id: int):
             errors = 0
 
             # Execute each test case
-            for case in test_cases:
-                case_result = await execute_single_case(
-                    case=case,
-                    env=env,
-                    agent=agent,
-                    task_id=task_id,
-                    judge_llm_model=task.judge_llm_model,
-                    db=db,
-                )
+            # 从智能体配置读取并发上限，防止打挂被测服务
+            concurrency_limit = agent.rate_limit_qps if agent.rate_limit_qps else 5
+            sem = asyncio.Semaphore(concurrency_limit)
+            
+            async def _run_case_with_limit(c: TestCase) -> str:
+                """带信号量限制的单用例执行包装器"""
+                async with sem:
+                    return await execute_single_case(
+                        case=c,
+                        env=env,
+                        agent=agent,
+                        task_id=task_id,
+                        judge_llm_model=task.judge_llm_model,
+                        db=db,
+                    )
 
-                if case_result == "passed":
+            # 并发批量执行所有用例，利用 return_exceptions=True 阻断局部单点失败雪崩
+            case_outcomes = await asyncio.gather(
+                *[_run_case_with_limit(c) for c in test_cases],
+                return_exceptions=True
+            )
+
+            for outcome in case_outcomes:
+                if isinstance(outcome, Exception):
+                    errors += 1
+                elif outcome == "passed":
                     passed += 1
-                elif case_result == "failed":
+                elif outcome == "failed":
                     failed += 1
                 else:
                     errors += 1
@@ -100,7 +121,8 @@ async def run_evaluation(task_id: int):
             }
             task.stats_json = stats
             task.status = TaskStatus.COMPLETED.value
-            task.completed_at = datetime.now()
+            from datetime import datetime as dt
+            task.completed_at = dt.now()
             await db.commit()
 
         except Exception as e:
@@ -215,62 +237,53 @@ async def execute_single_case(
         return "error"
 
 
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=1, max=10),
+    retry=retry_if_exception_type((httpx.TimeoutException, httpx.ConnectError)),
+    reraise=True,
+)
+async def _call_agent_api(endpoint: str, token: str, question: str, ddl: str, timeout_s: float) -> str:
+    """调用智能体 API（含退避重试机制，防止网络抖动）"""
+    response = await HTTP_CLIENT.post(
+        endpoint,
+        json={"question": question, "schema": ddl},
+        headers={"Authorization": f"Bearer {token}"},
+        timeout=timeout_s,
+    )
+    response.raise_for_status()
+    data = response.json()
+    return data.get("sql", "")
+
+
 async def fetch_sql_from_agent(
     question: str,
     ddl: str,
     agent: AgentConfig,
 ) -> str:
-    """
-    Fetch SQL from the configured agent.
-
-    This is a mock implementation. In production, this would call the actual
-    agent API endpoint.
-    """
-    # Mock response for demo purposes
-    # In production, make actual API call to agent endpoint
-
-    mock_responses = {
-        "select": "SELECT * FROM ",
-        "count": "SELECT COUNT(*) FROM ",
-        "sum": "SELECT SUM() FROM ",
-        "avg": "SELECT AVG() FROM ",
-    }
-
-    # Simple mock: try to extract table from question
-    question_lower = question.lower()
-
-    # Check if there's a mock endpoint configured
+    """获取智能体生成的 SQL，真实 API 失败时降级到 Mock"""
     if agent.api_endpoint and agent.api_endpoint != "mock":
         try:
-            response = await HTTP_CLIENT.post(
-                agent.api_endpoint,
-                json={
-                    "question": question,
-                    "schema": ddl,
-                },
-                headers={
-                    "Authorization": f"Bearer {agent.auth_token}",
-                },
-                timeout=agent.timeout_ms / 1000,
+            return await _call_agent_api(
+                endpoint=agent.api_endpoint,
+                token=agent.auth_token or "",
+                question=question,
+                ddl=ddl,
+                timeout_s=(agent.timeout_ms or 30000) / 1000,
             )
-            if response.status_code == 200:
-                data = response.json()
-                return data.get("sql", "")
-            else:
-                print(f"Agent API returned status {response.status_code}")
         except Exception as e:
-            print(f"Agent API error: {e}")
+            # 记录警告，自动降级为 Mock 测试数据
+            print(f"[WARN] 智能体 API 重试后仍然失败，降级 Mock兜底: {e}")
 
-    # Mock response based on question content
+    # Mock 降级逻辑（保留原有实现）
+    question_lower = question.lower()
     if "count" in question_lower:
         return "SELECT COUNT(*) FROM users LIMIT 10"
     elif "sum" in question_lower:
         return "SELECT SUM(amount) FROM orders LIMIT 10"
     elif "average" in question_lower or "avg" in question_lower:
         return "SELECT AVG(price) FROM products LIMIT 10"
-    else:
-        # Default mock
-        return "SELECT * FROM users LIMIT 10"
+    return "SELECT * FROM users LIMIT 10"
 
 
 async def _update_task_status(task_id: int, db: AsyncSession, status: str):

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import Integer, func, select
 from typing import Dict, Any, List
 
 from app.database import get_db
@@ -116,8 +116,9 @@ async def get_leaderboard(db: AsyncSession = Depends(get_db)):
         select(
             EvaluationTask.agent_id,
             func.count(EvaluationResult.id).label("total"),
-            func.sum(
-                func.cast(EvaluationResult.data_diff_passed, int)
+            func.coalesce(
+                func.sum(func.cast(EvaluationResult.data_diff_passed, Integer)),
+                0
             ).label("passed")
         )
         .join(EvaluationResult, EvaluationResult.task_id == EvaluationTask.id)
@@ -126,6 +127,8 @@ async def get_leaderboard(db: AsyncSession = Depends(get_db)):
 
     leaderboard = []
     for agent_id, total, passed in result.all():
+        total = int(total or 0)
+        passed = int(passed or 0)
         pass_rate = (passed / total * 100) if total > 0 else 0
         leaderboard.append({
             "agent_id": agent_id,

@@ -25,6 +25,7 @@ class EvaluationTask(Base):
     judge_llm_model = Column(String(100), nullable=True)
     status = Column(String(50), default=TaskStatus.PENDING.value)
     stats_json = Column(JSON, nullable=True, default=dict)
+    completed_count = Column(Integer, default=0, nullable=False)
     created_at = Column(DateTime, server_default=func.now())
     completed_at = Column(DateTime, nullable=True)
 

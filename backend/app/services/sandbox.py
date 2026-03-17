@@ -1,5 +1,6 @@
 import asyncio
 import aiosqlite
+import asyncpg
 from typing import Optional, List, Dict, Any, Tuple
 from datetime import datetime
 import re
@@ -123,6 +124,42 @@ class SandboxExecutor:
             await conn.close()
 
 
+async def _execute_on_real_db(
+    db_url: str,
+    sql: str,
+    timeout: int = None
+) -> Tuple[bool, Any, Optional[str]]:
+    """
+    连接真实只读沙箱数据库执行查询。
+    
+    注意：沙箱 DB 账号必须仅有 SELECT 权限。
+    """
+    timeout = timeout or settings.query_timeout_seconds
+    try:
+        conn = await asyncio.wait_for(
+            asyncpg.connect(db_url),
+            timeout=timeout
+        )
+        try:
+            # 强制只读事务，双重保险
+            async with conn.transaction(readonly=True):
+                rows = await asyncio.wait_for(
+                    conn.fetch(sql),
+                    timeout=timeout
+                )
+            # asyncpg Record 对象转换为普通字典列表
+            results = [dict(row) for row in rows]
+            return True, results, None
+        finally:
+            await conn.close()
+    except asyncio.TimeoutError:
+        return False, None, f"查询超时（{timeout}s）"
+    except asyncpg.exceptions.UndefinedTableError as e:
+        return False, None, f"表不存在: {str(e)}"
+    except Exception as e:
+        return False, None, str(e)
+
+
 async def execute_sql_in_sandbox(
     ddl: str,
     sql: str,
@@ -130,22 +167,12 @@ async def execute_sql_in_sandbox(
 ) -> Tuple[bool, Any, Optional[str]]:
     """
     Convenience function to execute SQL in a sandbox environment.
-
-    Args:
-        ddl: Schema definition (CREATE TABLE statements)
-        sql: Query to execute
-        db_url: Optional database URL (uses in-memory if not provided)
-
-    Returns:
-        Tuple of (success, data, error_message)
     """
-    if db_url:
-        # Use provided database
-        executor = SandboxExecutor(db_path=db_url)
-        async with executor:
-            return await executor.execute_with_schema(ddl, sql)
-    else:
-        # Use in-memory database
-        executor = SandboxExecutor()
-        async with executor:
-            return await executor.execute_with_schema(ddl, sql)
+    # 优先使用真实数据库
+    if db_url and (db_url.startswith("postgresql") or db_url.startswith("mysql")):
+        return await _execute_on_real_db(db_url, sql)
+    
+    # 降级到 SQLite 内存库（保留原有逻辑）
+    executor = SandboxExecutor()
+    async with executor:
+        return await executor.execute_with_schema(ddl, sql)

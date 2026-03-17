@@ -10,7 +10,19 @@ import type {
 
 const api = axios.create({
   baseURL: '/api',
+  timeout: 10000, // 增加 10s 超时防止界面无响应
 })
+
+// 响应拦截器：统一处理错误提示，解决“无响应”后的迷茫
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.code === 'ECONNABORTED') {
+      window.console.error('API Timeout - Interface Unresponsive Fix');
+    }
+    return Promise.reject(error);
+  }
+)
 
 // Environment APIs
 export const getSchemaEnvs = () => api.get<SchemaEnv[]>('/schema-envs')

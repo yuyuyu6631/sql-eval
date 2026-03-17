@@ -14,6 +14,15 @@ from app.schemas.agent_config import (
 router = APIRouter()
 
 
+def _normalize_agent_defaults(agent: AgentConfig) -> AgentConfig:
+    """Backfill nullable legacy fields to keep API responses stable."""
+    if agent.rate_limit_qps is None:
+        agent.rate_limit_qps = 10
+    if agent.timeout_ms is None:
+        agent.timeout_ms = 30000
+    return agent
+
+
 @router.get("/agents", response_model=List[AgentConfigResponse])
 async def get_agents(
     skip: int = 0,
@@ -25,7 +34,7 @@ async def get_agents(
         select(AgentConfig).offset(skip).limit(limit)
     )
     agents = result.scalars().all()
-    return agents
+    return [_normalize_agent_defaults(agent) for agent in agents]
 
 
 @router.post("/agents", response_model=AgentConfigResponse, status_code=status.HTTP_201_CREATED)
@@ -38,7 +47,7 @@ async def create_agent(
     db.add(db_agent)
     await db.commit()
     await db.refresh(db_agent)
-    return db_agent
+    return _normalize_agent_defaults(db_agent)
 
 
 @router.get("/agents/{agent_id}", response_model=AgentConfigResponse)
@@ -56,7 +65,7 @@ async def get_agent(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Agent {agent_id} not found",
         )
-    return agent
+    return _normalize_agent_defaults(agent)
 
 
 @router.put("/agents/{agent_id}", response_model=AgentConfigResponse)
@@ -82,7 +91,7 @@ async def update_agent(
 
     await db.commit()
     await db.refresh(agent)
-    return agent
+    return _normalize_agent_defaults(agent)
 
 
 @router.delete("/agents/{agent_id}", status_code=status.HTTP_204_NO_CONTENT)

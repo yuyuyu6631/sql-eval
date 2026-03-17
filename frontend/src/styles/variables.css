@@ -1,0 +1,120 @@
+/* ============================================================
+   SQL-Eval Platform — Design Token System
+   遵循 ui-ux-pro-max 规范，完整支持 Dark / Light 双主题
+   ============================================================ */
+
+/* Google Fonts 引入 */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap');
+
+:root {
+  /* ---- 字体 ---- */
+  --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+
+  /* ---- 主色彩（Dark Mode 默认）---- */
+  --m-bg: #09090b;
+  /* Zinc-950 */
+  --m-bg-alt: #111113;
+  --m-surface: rgba(255, 255, 255, 0.04);
+  --m-surface-bright: rgba(255, 255, 255, 0.07);
+  --m-surface-hover: rgba(255, 255, 255, 0.09);
+  --m-border: rgba(255, 255, 255, 0.09);
+  --m-border-strong: rgba(255, 255, 255, 0.15);
+
+  /* ---- 语义颜色 ---- */
+  --m-primary: #10b981;
+  /* Emerald-500 */
+  --m-primary-hover: #059669;
+  /* Emerald-600 */
+  --m-primary-ghost: rgba(16, 185, 129, 0.12);
+  --m-accent: #6366f1;
+  /* Indigo-500 */
+  --m-accent-ghost: rgba(99, 102, 241, 0.12);
+  --m-success: #10b981;
+  --m-success-ghost: rgba(16, 185, 129, 0.1);
+  --m-warning: #f59e0b;
+  --m-warning-ghost: rgba(245, 158, 11, 0.1);
+  --m-danger: #ef4444;
+  --m-danger-ghost: rgba(239, 68, 68, 0.1);
+  --m-info: #3b82f6;
+  --m-info-ghost: rgba(59, 130, 246, 0.1);
+
+  /* ---- 文字颜色 ---- */
+  --m-text: #fafafa;
+  /* Zinc-50 */
+  --m-text-muted: #a1a1aa;
+  /* Zinc-400 */
+  --m-text-dim: #52525b;
+  /* Zinc-600 */
+
+  /* ---- 间距系统 ---- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+
+  /* ---- 圆角系统 ---- */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+  --m-radius: 8px;
+  /* 通用别名 */
+
+  /* ---- 阴影系统 ---- */
+  --m-shadow: 0 1px 3px rgb(0 0 0 / 0.3), 0 1px 2px -1px rgb(0 0 0 / 0.3);
+  --m-shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.4);
+  --m-shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.5), 0 4px 6px -4px rgb(0 0 0 / 0.5);
+
+  /* ---- 动画 ---- */
+  --t-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --t-normal: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  --t-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  /* 向后兼容别名 */
+  --m-transition-normal: var(--t-normal);
+
+  /* ---- 布局尺寸 ---- */
+  --m-header-h: 56px;
+  --m-sb-w: 240px;
+  --m-sb-w-c: 64px;
+
+  /* ---- z-index 层级体系（严格管理） ---- */
+  --z-base: 10;
+  --z-dropdown: 20;
+  --z-overlay: 30;
+  --z-modal: 50;
+  --z-tooltip: 60;
+}
+
+/* ============================================================
+   Light Mode 覆盖
+   遵循规范：surface 不低于 rgba(0,0,0,0.06)，确保可见
+   ============================================================ */
+[data-theme="light"] {
+  --m-bg: #ffffff;
+  --m-bg-alt: #f4f4f5;
+  /* Zinc-100 */
+  --m-surface: rgba(0, 0, 0, 0.04);
+  /* ≥ 0.03，满足规范 */
+  --m-surface-bright: rgba(0, 0, 0, 0.07);
+  --m-surface-hover: rgba(0, 0, 0, 0.09);
+  --m-border: rgba(0, 0, 0, 0.10);
+  /* 满足边框可见性规范 */
+  --m-border-strong: rgba(0, 0, 0, 0.18);
+
+  --m-text: #09090b;
+  /* Zinc-950，满足 4.5:1 对比度 */
+  --m-text-muted: #52525b;
+  /* Zinc-600，满足 3:1 辅助文字对比度 */
+  --m-text-dim: #a1a1aa;
+  /* Zinc-400 */
+
+  --m-shadow: 0 1px 3px rgb(0 0 0 / 0.08), 0 1px 2px -1px rgb(0 0 0 / 0.08);
+  --m-shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --m-shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+}

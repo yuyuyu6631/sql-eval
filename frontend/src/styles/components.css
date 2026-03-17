@@ -1,0 +1,349 @@
+/* ============================================================
+   通用公共组件样式库
+   规范：禁止所有 Hover 使用 transform 引发布局偏移
+         改用 box-shadow 增强 或 border-color 变化
+   ============================================================ */
+
+/* ============ Card 卡片 ============ */
+.m-card {
+    background: var(--m-surface);
+    border: 1px solid var(--m-border);
+    border-radius: var(--radius-xl);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: var(--m-shadow);
+    overflow: hidden;
+    transition: box-shadow var(--t-normal), border-color var(--t-normal);
+}
+
+/* ✅ 正确：用 box-shadow 加深，不用 transform（防布局偏移）*/
+.m-card:hover {
+    border-color: var(--m-border-strong);
+    box-shadow: var(--m-shadow-md);
+}
+
+.m-card.interactive {
+    cursor: pointer;
+}
+
+.m-card.interactive:hover {
+    background: var(--m-surface-hover);
+}
+
+/* ============ Button 按钮 ============ */
+.m-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    padding: 8px 16px;
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    font-weight: 600;
+    font-family: var(--font-ui);
+    cursor: pointer;
+    transition: background-color var(--t-fast), box-shadow var(--t-fast), border-color var(--t-fast);
+    border: 1px solid transparent;
+    user-select: none;
+    white-space: nowrap;
+    line-height: 1;
+    min-height: 36px;
+    /* 规范：确保触控目标不低于 44px（含 padding） */
+}
+
+.m-btn:disabled,
+.m-btn[aria-disabled="true"] {
+    opacity: 0.45;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.m-btn.is-loading {
+    cursor: progress;
+    pointer-events: none;
+    opacity: 0.75;
+}
+
+/* 主色调按钮 */
+.m-btn.primary {
+    background: var(--m-primary);
+    color: #000;
+}
+
+/* ✅ 正确：用 box-shadow，不用 transform */
+.m-btn.primary:not(:disabled):not(.is-loading):hover {
+    background: var(--m-primary-hover);
+    box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
+}
+
+/* 次要按钮 */
+.m-btn.secondary {
+    background: var(--m-surface);
+    border-color: var(--m-border);
+    color: var(--m-text);
+}
+
+.m-btn.secondary:not(:disabled):not(.is-loading):hover {
+    background: var(--m-surface-hover);
+    border-color: var(--m-border-strong);
+}
+
+/* 幽灵按钮 */
+.m-btn.ghost {
+    background: transparent;
+    color: var(--m-text-muted);
+}
+
+.m-btn.ghost:not(:disabled):not(.is-loading):hover {
+    color: var(--m-text);
+    background: var(--m-surface);
+}
+
+/* 危险按钮 */
+.m-btn.danger {
+    background: var(--m-danger-ghost);
+    color: var(--m-danger);
+    border-color: rgba(239, 68, 68, 0.25);
+}
+
+.m-btn.danger:not(:disabled):not(.is-loading):hover {
+    background: rgba(239, 68, 68, 0.18);
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.2);
+}
+
+/* 渐变强调按钮（用于 CTA） */
+.m-btn.gradient {
+    background: linear-gradient(135deg, var(--m-primary), var(--m-accent));
+    color: #fff;
+    border: none;
+    box-shadow: 0 4px 14px rgba(16, 185, 129, 0.2);
+}
+
+.m-btn.gradient:not(:disabled):not(.is-loading):hover {
+    box-shadow: 0 6px 20px rgba(16, 185, 129, 0.35);
+}
+
+/* 按钮尺寸 */
+.m-btn.sm {
+    padding: 5px 10px;
+    font-size: 12px;
+    min-height: 28px;
+}
+
+.m-btn.lg {
+    padding: 10px 20px;
+    font-size: 14px;
+    min-height: 44px;
+}
+
+/* ============ Tag 标签 ============ */
+.m-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 18px;
+    border: 1px solid transparent;
+    white-space: nowrap;
+}
+
+.m-tag.success {
+    background: var(--m-success-ghost);
+    color: var(--m-success);
+    border-color: rgba(16, 185, 129, 0.2);
+}
+
+.m-tag.warning {
+    background: var(--m-warning-ghost);
+    color: var(--m-warning);
+    border-color: rgba(245, 158, 11, 0.2);
+}
+
+.m-tag.danger {
+    background: var(--m-danger-ghost);
+    color: var(--m-danger);
+    border-color: rgba(239, 68, 68, 0.2);
+}
+
+.m-tag.info {
+    background: var(--m-info-ghost);
+    color: var(--m-info);
+    border-color: rgba(59, 130, 246, 0.2);
+}
+
+.m-tag.accent {
+    background: var(--m-accent-ghost);
+    color: var(--m-accent);
+    border-color: rgba(99, 102, 241, 0.2);
+}
+
+.m-tag.primary {
+    background: var(--m-primary-ghost);
+    color: var(--m-primary);
+    border-color: rgba(16, 185, 129, 0.2);
+}
+
+.m-tag.neutral {
+    background: var(--m-surface);
+    color: var(--m-text-muted);
+    border-color: var(--m-border);
+}
+
+/* ============ Skeleton 骨架屏 ============ */
+.m-skeleton {
+    background: var(--m-surface-bright);
+    border-radius: var(--radius-md);
+    position: relative;
+    overflow: hidden;
+}
+
+.m-skeleton::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg,
+            transparent 0%,
+            rgba(255, 255, 255, 0.05) 50%,
+            transparent 100%);
+    animation: skeleton-shimmer 1.5s ease-in-out infinite;
+    background-size: 200% 100%;
+}
+
+/* prefers-reduced-motion: skeleton 不闪烁 */
+@media (prefers-reduced-motion: reduce) {
+    .m-skeleton::after {
+        animation: none;
+    }
+}
+
+@keyframes skeleton-shimmer {
+    0% {
+        background-position: -200% 0;
+    }
+
+    100% {
+        background-position: 200% 0;
+    }
+}
+
+/* ============ Empty State 空状态 ============ */
+.m-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-4);
+    padding: var(--space-10) var(--space-6);
+    color: var(--m-text-muted);
+    text-align: center;
+}
+
+.m-empty-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--m-surface-bright);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--m-text-dim);
+    font-size: 22px;
+}
+
+.m-empty-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--m-text);
+}
+
+.m-empty-desc {
+    font-size: 13px;
+    color: var(--m-text-muted);
+    max-width: 300px;
+    line-height: 1.6;
+}
+
+/* ============ Divider 分割线 ============ */
+.m-divider {
+    width: 1px;
+    background: var(--m-border);
+    align-self: stretch;
+}
+
+.m-divider.h {
+    width: auto;
+    height: 1px;
+    background: var(--m-border);
+}
+
+/* ============ Code Block 代码块 ============ */
+.m-code {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--m-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+    white-space: pre-wrap;
+    word-break: break-all;
+    color: #a3e635;
+    /* lime-400，代码高亮绿 */
+    line-height: 1.6;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+[data-theme="light"] .m-code {
+    background: #1e1e2e;
+    color: #a3e635;
+}
+
+/* ============ Badge 数字角标 ============ */
+.m-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    font-size: 11px;
+    font-weight: 700;
+    background: var(--m-primary);
+    color: #000;
+}
+
+/* ============ 表格容器 ============ */
+.m-table-wrapper {
+    border: 1px solid var(--m-border);
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+}
+
+/* ============ Loading Spinner ============ */
+.m-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--m-border);
+    border-top-color: currentColor;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    display: inline-block;
+    flex-shrink: 0;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .m-spinner {
+        animation: none;
+        opacity: 0.5;
+    }
+}
