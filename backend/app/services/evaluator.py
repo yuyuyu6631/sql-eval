@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import time
 from datetime import datetime
 from typing import Dict, Any, List
@@ -27,6 +28,17 @@ from tenacity import (
 # Global shared HTTP client for efficiency and connection pooling
 HTTP_CLIENT = httpx.AsyncClient(timeout=30.0)
 
+async def _resolve_maybe_await(value):
+    """Resolve both sync and async return values (useful for test doubles)."""
+    if inspect.isawaitable(value):
+        return await value
+    return value
+
+
+async def _invoke_maybe_await(fn):
+    """Invoke a callable and resolve if it returns an awaitable."""
+    return await _resolve_maybe_await(fn())
+
 
 async def run_evaluation(task_id: int):
     """
@@ -40,7 +52,7 @@ async def run_evaluation(task_id: int):
             result = await db.execute(
                 select(EvaluationTask).where(EvaluationTask.id == task_id)
             )
-            task = result.scalar_one_or_none()
+            task = await _invoke_maybe_await(result.scalar_one_or_none)
             if not task:
                 return
 
@@ -48,7 +60,7 @@ async def run_evaluation(task_id: int):
             env_result = await db.execute(
                 select(SchemaEnv).where(SchemaEnv.id == task.env_id)
             )
-            env = env_result.scalar_one_or_none()
+            env = await _invoke_maybe_await(env_result.scalar_one_or_none)
             if not env:
                 await _update_task_status(task_id, db, TaskStatus.FAILED.value)
                 return
@@ -57,7 +69,7 @@ async def run_evaluation(task_id: int):
             agent_result = await db.execute(
                 select(AgentConfig).where(AgentConfig.id == task.agent_id)
             )
-            agent = agent_result.scalar_one_or_none()
+            agent = await _invoke_maybe_await(agent_result.scalar_one_or_none)
             if not agent:
                 await _update_task_status(task_id, db, TaskStatus.FAILED.value)
                 return
@@ -71,7 +83,10 @@ async def run_evaluation(task_id: int):
                 cases_result = await db.execute(
                     select(TestCase).where(TestCase.env_id == task.env_id)
                 )
-            test_cases = cases_result.scalars().all()
+            scalars_result = await _resolve_maybe_await(cases_result.scalars())
+            test_cases = await _invoke_maybe_await(scalars_result.all)
+            if test_cases is None:
+                test_cases = []
 
             total = len(test_cases)
             passed = 0
@@ -215,7 +230,8 @@ async def execute_single_case(
         result.execution_status = "completed"
 
         # Step 7: Get LLM diagnosis if failed
-        if not is_passed and judge_llm_model:
+        judge_model = judge_llm_model or settings.judge_llm_default_model
+        if not is_passed and judge_model:
             diagnosis = await get_llm_diagnosis(
                 question=case.question,
                 golden_sql=safe_golden_sql,
@@ -223,7 +239,7 @@ async def execute_single_case(
                 golden_data=golden_data,
                 agent_data=agent_data,
                 error_message=diff_details.get("has_diff") and diff_details,
-                model=judge_llm_model,
+                model=judge_model,
             )
             result.ai_diagnosis = diagnosis
 
@@ -251,8 +267,10 @@ async def _call_agent_api(endpoint: str, token: str, question: str, ddl: str, ti
         headers={"Authorization": f"Bearer {token}"},
         timeout=timeout_s,
     )
-    response.raise_for_status()
-    data = response.json()
+    await _resolve_maybe_await(response.raise_for_status())
+    data = await _resolve_maybe_await(response.json())
+    if not isinstance(data, dict):
+        raise ValueError("Agent API response must be a JSON object")
     return data.get("sql", "")
 
 
@@ -291,7 +309,7 @@ async def _update_task_status(task_id: int, db: AsyncSession, status: str):
     result = await db.execute(
         select(EvaluationTask).where(EvaluationTask.id == task_id)
     )
-    task = result.scalar_one_or_none()
+    task = await _invoke_maybe_await(result.scalar_one_or_none)
     if task:
         task.status = status
         await db.commit()

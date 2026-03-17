@@ -13,6 +13,7 @@ from app.routers import (
     agent_config,
     evaluation_task,
     dashboard,
+    system_config,
 )
 
 # Configure logging
@@ -58,6 +59,7 @@ app.include_router(test_case.router, prefix="/api", tags=["Test Cases"])
 app.include_router(agent_config.router, prefix="/api", tags=["Agents"])
 app.include_router(evaluation_task.router, prefix="/api", tags=["Evaluation"])
 app.include_router(dashboard.router, prefix="/api", tags=["Dashboard"])
+app.include_router(system_config.router, prefix="/api", tags=["System"])
 
 
 @app.exception_handler(Exception)

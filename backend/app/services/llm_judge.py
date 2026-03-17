@@ -1,6 +1,7 @@
 import httpx
-from typing import Optional, Dict, Any
+from typing import Optional, Any
 from app.config import settings
+from app.services.secret_store import get_judge_api_key
 
 
 async def get_llm_diagnosis(
@@ -30,7 +31,10 @@ async def get_llm_diagnosis(
     Returns:
         AI diagnosis string
     """
-    if not settings.judge_llm_endpoint:
+    endpoint = settings.judge_llm_endpoint
+    api_key = get_judge_api_key(settings.judge_llm_api_key)
+
+    if not endpoint or not api_key:
         # Return mock diagnosis if no LLM endpoint configured
         diagnosis = f"""## AI Diagnosis Report
 
@@ -98,23 +102,67 @@ Provide a diagnosis explaining why the agent's SQL failed to produce the expecte
 """
 
     try:
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                settings.judge_llm_endpoint,
-                json={
-                    "model": model or "gpt-4",
-                    "messages": [{"role": "user", "content": prompt}],
-                    "max_tokens": 500,
-                },
-                headers={
-                    "Authorization": f"Bearer {settings.judge_llm_api_key}",
-                },
-                timeout=30.0,
-            )
-            if response.status_code == 200:
-                result = response.json()
-                return result.get("choices", [{}])[0].get("message", {}).get("content", "No diagnosis available")
-            else:
-                return f"LLM API error: {response.status_code}"
+        result = await _call_chat_completion(
+            endpoint=endpoint,
+            api_key=api_key,
+            model=model or settings.judge_llm_default_model or "MiniMax-M2.5",
+            messages=[{"role": "user", "content": prompt}],
+        )
+        content = _extract_message_content(result)
+        return content or "No diagnosis available"
     except Exception as e:
         return f"LLM diagnosis failed: {str(e)}"
+
+
+async def test_judge_llm_connection(
+    endpoint: str,
+    api_key: str,
+    model: str,
+) -> dict[str, Any]:
+    """Lightweight connectivity test for OpenAI-compatible judge endpoints."""
+    payload = await _call_chat_completion(
+        endpoint=endpoint,
+        api_key=api_key,
+        model=model,
+        messages=[{"role": "user", "content": "Hello, how are you?"}],
+        max_tokens=128,
+        timeout_s=60.0,
+    )
+    return {
+        "ok": True,
+        "model": payload.get("model", model),
+        "preview": (_extract_message_content(payload) or "")[:200],
+    }
+
+
+async def _call_chat_completion(
+    endpoint: str,
+    api_key: str,
+    model: str,
+    messages: list[dict[str, str]],
+    max_tokens: int = 500,
+    timeout_s: float = 30.0,
+) -> dict[str, Any]:
+    async with httpx.AsyncClient(timeout=timeout_s) as client:
+        response = await client.post(
+            endpoint,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": model,
+                "messages": messages,
+                "max_tokens": max_tokens,
+            },
+        )
+        response.raise_for_status()
+        return response.json()
+
+
+def _extract_message_content(payload: dict[str, Any]) -> str:
+    choices = payload.get("choices") or []
+    if not choices:
+        return ""
+    message = choices[0].get("message") or {}
+    return message.get("content") or ""

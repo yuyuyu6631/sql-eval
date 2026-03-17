@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     # LLM settings (optional)
     judge_llm_endpoint: Optional[str] = None
     judge_llm_api_key: Optional[str] = None
+    judge_llm_default_model: Optional[str] = None
 
     class Config:
         env_file = ".env"

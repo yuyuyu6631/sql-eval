@@ -1,0 +1,82 @@
+{
+  "name": "e2e_smoke_single_case_pass",
+  "description": "端到端冒烟：创建环境/智能体/用例/任务并验证任务可完成",
+  "steps": [
+    {
+      "api": "POST /api/schema-envs",
+      "payload": {
+        "env_name": "smoke-env-{timestamp}",
+        "ddl_content": "CREATE TABLE users (id INTEGER, name TEXT);INSERT INTO users (id, name) VALUES (1, 'A');INSERT INTO users (id, name) VALUES (2, 'B');"
+      }
+    },
+    {
+      "api": "POST /api/agents",
+      "payload": {
+        "agent_name": "smoke-agent-{timestamp}",
+        "api_endpoint": "mock",
+        "auth_token": "",
+        "rate_limit_qps": 5,
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "api": "POST /api/test-cases",
+      "payload": {
+        "question": "count users",
+        "golden_sql": "SELECT COUNT(*) FROM users LIMIT 10",
+        "tags": [
+          "smoke"
+        ]
+      },
+      "inject": {
+        "env_id": "from:env.id"
+      }
+    },
+    {
+      "api": "POST /api/tasks",
+      "payload": {
+        "task_name": "smoke-task-{timestamp}",
+        "judge_llm_model": "",
+        "case_ids": [
+          "from:case.id"
+        ]
+      },
+      "inject": {
+        "agent_id": "from:agent.id",
+        "env_id": "from:env.id"
+      }
+    },
+    {
+      "api": "POST /api/tasks/{task_id}/start",
+      "path_params": {
+        "task_id": "from:task.id"
+      }
+    },
+    {
+      "api": "GET /api/tasks/{task_id}/progress",
+      "path_params": {
+        "task_id": "from:task.id"
+      },
+      "poll_until": {
+        "field": "status",
+        "in": [
+          "completed",
+          "failed"
+        ],
+        "timeout_seconds": 15
+      }
+    },
+    {
+      "api": "GET /api/results?task_id={task_id}",
+      "path_params": {
+        "task_id": "from:task.id"
+      }
+    }
+  ],
+  "assertions": [
+    "task.status == completed",
+    "task.stats_json.total >= 1",
+    "task.stats_json.passed >= 1",
+    "results.length >= 1"
+  ]
+}

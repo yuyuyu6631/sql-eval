@@ -50,6 +50,18 @@ file/
 - Python 3.9+
 - Node.js 18+
 
+### One Command Start (Recommended)
+
+```bash
+python start.py
+```
+
+Optional:
+
+```bash
+python start.py --skip-install
+```
+
 ### 1. Start Backend
 
 ```bash
@@ -115,6 +127,24 @@ Go to "Tasks" page → Create a task:
 - Select environment
 - Optionally select specific test cases
 - Click "Start" to run
+
+### Enable Judge LLM (AI Diagnosis)
+
+If you want failed cases to include AI diagnosis, configure backend once:
+
+1. Copy `backend/.env.example` to `backend/.env`
+2. Set:
+   - `JUDGE_LLM_ENDPOINT` (your OpenAI-compatible chat completions endpoint)
+   - `JUDGE_LLM_API_KEY` (your API key)
+   - `JUDGE_LLM_DEFAULT_MODEL` (optional, e.g. `gpt-4o-mini`)
+3. Restart backend service
+
+After that:
+- In "Tasks" page, "Judge LLM" can be left empty to use backend default model
+- Or enter a model name to override for a specific task
+- You can also open "Tasks" page and use "裁判模型配置" to:
+  - Save endpoint / API key / default model directly in UI
+  - Click "测试连通" to verify provider integration before running evaluations
 
 ### Step 5: View Results
 

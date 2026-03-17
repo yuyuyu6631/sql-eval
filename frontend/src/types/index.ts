@@ -127,3 +127,15 @@ export interface DiagnosisResponse {
   result_id: number
   diagnosis?: string
 }
+
+export interface JudgeConfig {
+  endpoint?: string
+  default_model?: string
+  api_key_configured: boolean
+}
+
+export interface JudgeConfigTestResult {
+  ok: boolean
+  model: string
+  preview: string
+}

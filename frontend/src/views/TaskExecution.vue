@@ -9,6 +9,36 @@
       </button>
     </div>
 
+    <div class="m-card judge-config-card">
+      <div class="judge-config-header">
+        <div>
+          <div class="judge-config-title">裁判模型配置</div>
+          <div class="judge-config-sub">支持 OpenAI 兼容接口（如你给的 edgefn/chat/completions）。</div>
+        </div>
+        <span class="m-tag" :class="(judgeConfigForm.api_key || judgeApiKeyConfigured) ? 'success' : 'warning'">
+          {{ (judgeConfigForm.api_key || judgeApiKeyConfigured) ? 'API Key 已配置' : '未配置 Key' }}
+        </span>
+      </div>
+      <div class="judge-config-grid">
+        <el-input v-model="judgeConfigForm.endpoint" placeholder="https://api.edgefn.net/v1/chat/completions" />
+        <el-input v-model="judgeConfigForm.api_key" type="password" show-password placeholder="sk-..." />
+        <el-input v-model="judgeConfigForm.default_model" placeholder="MiniMax-M2.5" />
+      </div>
+      <div class="judge-config-actions">
+        <button class="m-btn secondary" :class="{ 'is-loading': judgeSaving }" @click="saveJudgeConfig">
+          <span v-if="judgeSaving" class="m-spinner" aria-hidden="true"></span>
+          保存配置
+        </button>
+        <button class="m-btn primary" :class="{ 'is-loading': judgeTesting }" @click="runJudgeConfigTest">
+          <span v-if="judgeTesting" class="m-spinner" aria-hidden="true"></span>
+          测试连通
+        </button>
+      </div>
+      <div v-if="judgeTestPreview" class="judge-test-preview">
+        连接成功：{{ judgeTestPreview }}
+      </div>
+    </div>
+
     <!-- 任务列表 -->
     <div class="m-card tasks-card">
       <!-- 骨架屏 -->
@@ -126,6 +156,21 @@
         </el-form-item>
         <el-form-item :label="t('task.judgeModel')">
           <el-input v-model="form.judge_llm_model" placeholder="Optional: gpt-4o" />
+          <div class="judge-help">
+            <span>留空将使用后端默认模型（若已配置）。</span>
+            <span>会自动记住你上次填写的模型。</span>
+          </div>
+          <div class="judge-presets">
+            <button
+              v-for="model in judgeModelPresets"
+              :key="model"
+              type="button"
+              class="m-btn sm ghost"
+              @click="form.judge_llm_model = model"
+            >
+              {{ model }}
+            </button>
+          </div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -228,6 +273,9 @@ import {
   getResults,
   getAgents, getSchemaEnvs,
   getTestCases,
+  getJudgeConfig,
+  updateJudgeConfig,
+  testJudgeConfig,
 } from '../api'
 import { t } from '../i18n'
 import api from '../api'
@@ -245,6 +293,10 @@ const isSubmitting      = ref(false)
 const dialogVisible     = ref(false)
 const resultsVisible    = ref(false)
 const showDiagnosis     = ref(false)
+const judgeSaving       = ref(false)
+const judgeTesting      = ref(false)
+const judgeTestPreview  = ref('')
+const judgeApiKeyConfigured = ref(false)
 
 /** 正在启动中的任务 ID 集合（防重复点击） */
 const startingTasks = ref<Set<number>>(new Set())
@@ -259,6 +311,13 @@ const form = ref({
   judge_llm_model: '',
 })
 const caseIdsInput = ref('')
+const judgeModelPresets = ['gpt-4o-mini', 'gpt-4o', 'deepseek-chat']
+const LAST_JUDGE_MODEL_KEY = 'last-judge-llm-model'
+const judgeConfigForm = ref({
+  endpoint: '',
+  api_key: '',
+  default_model: '',
+})
 
 /* ---- 轮询机制 ---- */
 let pollingTimer: ReturnType<typeof setInterval> | null = null
@@ -311,7 +370,12 @@ const loadTasks = async () => {
 
 /* ---- 操作 ---- */
 const showCreateDialog = () => {
-  form.value = { task_name: '', agent_id: undefined, env_id: undefined, judge_llm_model: '' }
+  form.value = {
+    task_name: '',
+    agent_id: undefined,
+    env_id: undefined,
+    judge_llm_model: localStorage.getItem(LAST_JUDGE_MODEL_KEY) ?? '',
+  }
   caseIdsInput.value = ''
   dialogVisible.value = true
 }
@@ -327,6 +391,10 @@ const submitCreate = async () => {
     if (caseIdsInput.value) {
       data.case_ids = caseIdsInput.value.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n))
     }
+    if (form.value.judge_llm_model?.trim()) {
+      localStorage.setItem(LAST_JUDGE_MODEL_KEY, form.value.judge_llm_model.trim())
+      data.judge_llm_model = form.value.judge_llm_model.trim()
+    }
     await createTask(data)
     ElMessage.success(t('task.createSuccess'))
     dialogVisible.value = false
@@ -335,6 +403,62 @@ const submitCreate = async () => {
     ElMessage.error(t('common.failed'))
   } finally {
     isSubmitting.value = false
+  }
+}
+
+const loadJudgeConfig = async () => {
+  try {
+    const res = await getJudgeConfig()
+    judgeConfigForm.value.endpoint = res.data.endpoint ?? ''
+    judgeConfigForm.value.default_model = res.data.default_model ?? ''
+    judgeApiKeyConfigured.value = !!res.data.api_key_configured
+    if (!form.value.judge_llm_model && res.data.default_model) {
+      form.value.judge_llm_model = res.data.default_model
+    }
+  } catch {
+    ElMessage.error('读取裁判配置失败')
+  }
+}
+
+const saveJudgeConfig = async () => {
+  judgeSaving.value = true
+  try {
+    const payload = {
+      endpoint: judgeConfigForm.value.endpoint.trim(),
+      api_key: judgeConfigForm.value.api_key.trim(),
+      default_model: judgeConfigForm.value.default_model.trim(),
+    }
+    const res = await updateJudgeConfig(payload)
+    judgeConfigForm.value.endpoint = res.data.endpoint ?? ''
+    judgeConfigForm.value.default_model = res.data.default_model ?? ''
+    judgeApiKeyConfigured.value = !!res.data.api_key_configured
+    if (!form.value.judge_llm_model && res.data.default_model) {
+      form.value.judge_llm_model = res.data.default_model
+    }
+    judgeConfigForm.value.api_key = ''
+    ElMessage.success('裁判配置已保存')
+  } catch {
+    ElMessage.error('保存裁判配置失败')
+  } finally {
+    judgeSaving.value = false
+  }
+}
+
+const runJudgeConfigTest = async () => {
+  judgeTesting.value = true
+  judgeTestPreview.value = ''
+  try {
+    const res = await testJudgeConfig({
+      endpoint: judgeConfigForm.value.endpoint.trim() || undefined,
+      api_key: judgeConfigForm.value.api_key.trim() || undefined,
+      model: (form.value.judge_llm_model || judgeConfigForm.value.default_model || '').trim() || undefined,
+    })
+    judgeTestPreview.value = `${res.data.model} -> ${(res.data.preview || '返回为空').slice(0, 120)}`
+    ElMessage.success('裁判模型连通测试成功')
+  } catch {
+    ElMessage.error('连通测试失败，请检查 endpoint/key/model')
+  } finally {
+    judgeTesting.value = false
   }
 }
 
@@ -411,6 +535,7 @@ onMounted(async () => {
     loadTasks(),
     getAgents().then(r => agents.value = r.data),
     getSchemaEnvs().then(r => environments.value = r.data),
+    loadJudgeConfig(),
   ])
   startPolling()
 })
@@ -440,6 +565,51 @@ onUnmounted(() => {
   font-size: 20px;
   font-weight: 700;
   color: var(--m-text);
+}
+
+.judge-config-card {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.judge-config-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.judge-config-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--m-text);
+}
+
+.judge-config-sub {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--m-text-muted);
+}
+
+.judge-config-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 0.8fr;
+  gap: 10px;
+}
+
+.judge-config-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.judge-test-preview {
+  font-size: 12px;
+  color: var(--m-text-muted);
+  border-top: 1px solid var(--m-border);
+  padding-top: 8px;
 }
 
 /* ---- 任务卡片 ---- */
@@ -607,5 +777,28 @@ onUnmounted(() => {
   text-transform: uppercase;
   color: var(--m-danger);
   margin-bottom: 6px;
+}
+
+.judge-help {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  color: var(--m-text-muted);
+  line-height: 1.4;
+}
+
+.judge-presets {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+@media (max-width: 980px) {
+  .judge-config-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

@@ -6,6 +6,8 @@ import type {
   EvaluationTask,
   EvaluationResult,
   DashboardStats,
+  JudgeConfig,
+  JudgeConfigTestResult,
 } from '../types'
 
 const api = axios.create({
@@ -83,5 +85,16 @@ export const getDashboardStats = () => api.get<DashboardStats>('/dashboard/stats
 export const getErrorDistribution = () => api.get('/dashboard/error-distribution')
 export const getComplexityAnalysis = () => api.get('/dashboard/complexity-analysis')
 export const getLeaderboard = () => api.get('/dashboard/leaderboard')
+export const getJudgeConfig = () => api.get<JudgeConfig>('/system/judge-config')
+export const updateJudgeConfig = (data: {
+  endpoint?: string
+  api_key?: string
+  default_model?: string
+}) => api.put<JudgeConfig>('/system/judge-config', data)
+export const testJudgeConfig = (data: {
+  endpoint?: string
+  api_key?: string
+  model?: string
+}) => api.post<JudgeConfigTestResult>('/system/judge-config/test', data)
 
 export default api

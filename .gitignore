@@ -37,4 +37,6 @@ Thumbs.db
 frontend/dist/
 frontend/node_modules/
 backend/venv/
+backend/.runtime-venv/
+backend/.secrets/
 backend/__pycache__/

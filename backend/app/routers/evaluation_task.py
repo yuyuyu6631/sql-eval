@@ -19,6 +19,7 @@ from app.schemas.evaluation_task import (
 )
 from app.schemas.evaluation_result import EvaluationResultResponse
 from app.services.evaluator import run_evaluation
+from app.config import settings
 
 router = APIRouter()
 
@@ -50,7 +51,11 @@ async def create_task(
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new evaluation task"""
-    db_task = EvaluationTask(**task.model_dump())
+    payload = task.model_dump()
+    if not payload.get("judge_llm_model") and settings.judge_llm_default_model:
+        payload["judge_llm_model"] = settings.judge_llm_default_model
+
+    db_task = EvaluationTask(**payload)
     db.add(db_task)
     await db.commit()
     await db.refresh(db_task)
