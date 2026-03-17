@@ -1,8 +1,10 @@
+import io
 import sys
 from pathlib import Path
 
 import httpx
 import pytest
+from openpyxl import load_workbook
 from sqlalchemy import delete
 
 
@@ -106,6 +108,7 @@ async def test_ai_design_forward_full_flow():
         )
         assert export_md_resp.status_code == 200
         assert export_md_resp.text.strip().startswith("# ")
+        assert "attachment;" in export_md_resp.headers["content-disposition"]
 
         export_json_resp = await client.post(
             "/api/ai-test-design/test-cases/export",
@@ -113,6 +116,25 @@ async def test_ai_design_forward_full_flow():
         )
         assert export_json_resp.status_code == 200
         assert export_json_resp.text.strip().startswith("[")
+        assert export_json_resp.headers["content-type"].startswith("application/json")
+
+        export_csv_resp = await client.post(
+            "/api/ai-test-design/test-cases/export",
+            json={"design_id": design_id, "format": "csv"},
+        )
+        assert export_csv_resp.status_code == 200
+        assert export_csv_resp.headers["content-type"].startswith("text/csv")
+        assert "attachment;" in export_csv_resp.headers["content-disposition"]
+
+        export_xlsx_resp = await client.post(
+            "/api/ai-test-design/test-cases/export",
+            json={"design_id": design_id, "format": "xlsx"},
+        )
+        assert export_xlsx_resp.status_code == 200
+        workbook = load_workbook(filename=io.BytesIO(export_xlsx_resp.content))
+        sheet = workbook["测试用例"]
+        assert "AI测试设计用例导出" in str(sheet["A1"].value)
+        assert sheet["B5"].value == "标题"
 
         delete_resp = await client.delete(f"/api/ai-test-design/test-cases/{case_id}")
         assert delete_resp.status_code == 200
@@ -196,11 +218,11 @@ async def test_ai_design_reverse_regenerate_flow():
             },
         )
         assert second_generate_resp.status_code == 200
-        assert len(second_generate_resp.json()["cases"]) >= 1
+        assert len(second_generate_resp.json()["cases"]) == 1
 
         case_list_resp = await client.get("/api/ai-test-design/test-cases/list", params={"design_id": design_id})
         assert case_list_resp.status_code == 200
-        assert len(case_list_resp.json()) >= 1
+        assert len(case_list_resp.json()) == 1
 
         case_id = case_list_resp.json()[0]["id"]
         confirm_resp = await client.put(

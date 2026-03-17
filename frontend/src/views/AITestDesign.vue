@@ -60,15 +60,15 @@
       </div>
       <div class="trace-item">
         <span class="trace-label">最近来源</span>
-        <span class="trace-value">{{ latestTrace.source || '-' }}</span>
+        <span class="trace-value">{{ sourceLabel(latestTrace.source) }}</span>
       </div>
       <div class="trace-item">
         <span class="trace-label">回退原因</span>
-        <span class="trace-value">{{ latestTrace.fallback_reason || '无' }}</span>
+        <span class="trace-value">{{ fallbackReasonLabel(latestTrace.fallback_reason) }}</span>
       </div>
       <div class="trace-item">
         <span class="trace-label">设计模式</span>
-        <span class="trace-value">{{ outputForm.generate_mode }}</span>
+        <span class="trace-value">{{ modeLabel(outputForm.generate_mode) }}</span>
       </div>
     </section>
 
@@ -90,7 +90,7 @@
         <div class="actions-row">
           <button class="m-btn secondary" @click="loadKnowledge">刷新列表</button>
           <button class="m-btn secondary" @click="triggerImport">导入文件</button>
-          <button class="m-btn primary" @click="saveKnowledge">保存并进入 DSN</button>
+          <button class="m-btn primary" @click="saveKnowledge">保存并进入设计分析</button>
           <input ref="fileInputRef" type="file" style="display: none" accept=".txt,.md,.json,.csv" @change="onImportFileChange" />
         </div>
       </article>
@@ -107,7 +107,11 @@
           <el-table-column prop="id" label="ID" width="70" />
           <el-table-column prop="title" label="标题" min-width="180" />
           <el-table-column prop="module_name" label="模块" width="120" />
-          <el-table-column prop="source_type" label="来源" width="120" />
+          <el-table-column label="来源" width="120">
+            <template #default="{ row }">
+              {{ knowledgeSourceLabel(row.source_type) }}
+            </template>
+          </el-table-column>
           <el-table-column label="操作" width="100">
             <template #default="{ row }">
               <button class="m-btn sm secondary" @click="useKnowledge(row)">使用</button>
@@ -131,15 +135,15 @@
             <el-option v-for="cfg in designConfigs" :key="cfg.id" :label="`${cfg.name} (${cfg.model_name})`" :value="cfg.model_name" />
           </el-select>
           <el-select v-model="outputForm.generate_mode">
-            <el-option label="simple" value="simple" />
-            <el-option label="standard" value="standard" />
-            <el-option label="deep" value="deep" />
+            <el-option label="快速" value="simple" />
+            <el-option label="标准" value="standard" />
+            <el-option label="深入" value="deep" />
           </el-select>
         </div>
         <div class="actions-row">
-          <button class="m-btn secondary" @click="goStep('kns')">返回 KNS</button>
+          <button class="m-btn secondary" @click="goStep('kns')">返回知识输入</button>
           <button class="m-btn primary" @click="generateSummary">生成设计摘要</button>
-          <button class="m-btn secondary" :disabled="!currentDesignId" @click="goStep('pts')">前往 PTS</button>
+          <button class="m-btn secondary" :disabled="!currentDesignId" @click="goStep('pts')">前往测试点管理</button>
         </div>
         <div class="summary-card">
           <div class="summary-block"><span class="summary-label">功能范围</span><p>{{ renderList(summary.function_scope) }}</p></div>
@@ -158,8 +162,8 @@
           <p class="panel-desc">查看最近一次设计生成来源和模型信息。</p>
         </div>
         <div class="trace-card">
-          <div>来源: <span class="font-mono">{{ designTrace.source || '-' }}</span></div>
-          <div>回退原因: <span class="font-mono">{{ designTrace.fallback_reason || '无' }}</span></div>
+          <div>来源: <span class="font-mono">{{ sourceLabel(designTrace.source) }}</span></div>
+          <div>回退原因: <span class="font-mono">{{ fallbackReasonLabel(designTrace.fallback_reason) }}</span></div>
           <div>模型名称: <span class="font-mono">{{ designTrace.model_name || '-' }}</span></div>
         </div>
         <div class="raw-output-card">
@@ -179,9 +183,9 @@
           <p class="panel-desc">按分类和优先级筛选测试点，控制哪些点进入用例生成。</p>
         </div>
         <div class="actions-row">
-          <button class="m-btn secondary" @click="goStep('dsn')">返回 DSN</button>
+          <button class="m-btn secondary" @click="goStep('dsn')">返回设计分析</button>
           <button class="m-btn primary" @click="generatePoints">重新生成测试点</button>
-          <button class="m-btn secondary" :disabled="selectedPointCount === 0" @click="goStep('cas')">前往 CAS</button>
+          <button class="m-btn secondary" :disabled="selectedPointCount === 0" @click="goStep('cas')">前往用例生成</button>
         </div>
         <el-table :data="points" size="small" empty-text="暂无测试点，请先生成">
           <el-table-column label="选中" width="72">
@@ -209,8 +213,8 @@
           <div class="mini-metric"><span>P0 / P1</span><strong>{{ highPriorityPointCount }}</strong></div>
         </div>
         <div class="trace-card">
-          <div>来源: <span class="font-mono">{{ pointTrace.source || '-' }}</span></div>
-          <div>回退原因: <span class="font-mono">{{ pointTrace.fallback_reason || '无' }}</span></div>
+          <div>来源: <span class="font-mono">{{ sourceLabel(pointTrace.source) }}</span></div>
+          <div>回退原因: <span class="font-mono">{{ fallbackReasonLabel(pointTrace.fallback_reason) }}</span></div>
           <div>模型名称: <span class="font-mono">{{ pointTrace.model_name || '-' }}</span></div>
         </div>
       </article>
@@ -227,15 +231,15 @@
         </div>
         <div class="form-grid compact-grid">
           <el-select v-model="outputForm.case_type">
-            <el-option label="functional" value="functional" />
-            <el-option label="api" value="api" />
-            <el-option label="ui" value="ui" />
-            <el-option label="generic" value="generic" />
+            <el-option label="功能用例" value="functional" />
+            <el-option label="接口用例" value="api" />
+            <el-option label="界面用例" value="ui" />
+            <el-option label="通用用例" value="generic" />
           </el-select>
           <el-input-number v-model="outputForm.output_count" :min="1" :max="50" />
         </div>
         <div class="actions-row wrap">
-          <button class="m-btn secondary" @click="goStep('pts')">返回 PTS</button>
+          <button class="m-btn secondary" @click="goStep('pts')">返回测试点管理</button>
           <button class="m-btn primary" @click="generateCases">生成测试用例</button>
           <button class="m-btn secondary" @click="loadCases">刷新列表</button>
           <button class="m-btn secondary" @click="doExport('markdown')">导出 Markdown 文档</button>
@@ -245,9 +249,17 @@
         </div>
         <el-table :data="cases" size="small" empty-text="暂无测试用例，请先生成">
           <el-table-column prop="title" label="标题" min-width="240" />
-          <el-table-column prop="case_type" label="类型" width="110" />
+          <el-table-column label="类型" width="110">
+            <template #default="{ row }">
+              {{ caseTypeLabel(row.case_type) }}
+            </template>
+          </el-table-column>
           <el-table-column prop="priority" label="优先级" width="90" />
-          <el-table-column prop="status" label="状态" width="120" />
+          <el-table-column label="状态" width="120">
+            <template #default="{ row }">
+              {{ caseStatusLabel(row.status) }}
+            </template>
+          </el-table-column>
           <el-table-column label="操作" width="200">
             <template #default="{ row }">
               <div class="actions">
@@ -269,8 +281,8 @@
           <p class="panel-desc">导出前先确认模型、来源和生成模式。</p>
         </div>
         <div class="trace-card">
-          <div>来源: <span class="font-mono">{{ caseTrace.source || '-' }}</span></div>
-          <div>回退原因: <span class="font-mono">{{ caseTrace.fallback_reason || '无' }}</span></div>
+          <div>来源: <span class="font-mono">{{ sourceLabel(caseTrace.source) }}</span></div>
+          <div>回退原因: <span class="font-mono">{{ fallbackReasonLabel(caseTrace.fallback_reason) }}</span></div>
           <div>模型名称: <span class="font-mono">{{ caseTrace.model_name || '-' }}</span></div>
         </div>
         <div class="raw-output-card">
@@ -296,9 +308,9 @@
         </el-form-item>
         <el-form-item label="状态">
           <el-select v-model="caseForm.status" style="width: 100%">
-            <el-option label="new" value="new" />
-            <el-option label="confirmed" value="confirmed" />
-            <el-option label="optimize_needed" value="optimize_needed" />
+            <el-option label="新建" value="new" />
+            <el-option label="已确认" value="confirmed" />
+            <el-option label="待优化" value="optimize_needed" />
           </el-select>
         </el-form-item>
       </el-form>
@@ -374,8 +386,50 @@ const activeStep = computed<StepKey>(() => normalizeStep(route.query.step))
 const selectedPointCount = computed(() => points.value.filter((item) => item.selected).length)
 const highPriorityPointCount = computed(() => points.value.filter((item) => item.priority === 'P0' || item.priority === 'P1').length)
 const currentKnowledgeTitle = computed(() => knowledgeList.value.find((item) => item.id === currentKnowledgeId.value)?.title || knowledgeForm.title || '-')
-const currentModelLabel = computed(() => outputForm.model_name || '未选择')
+const currentModelLabel = computed(() => {
+  const matched = designConfigs.value.find((item) => item.model_name === outputForm.model_name)
+  if (matched) return `${matched.name}（${matched.model_name}）`
+  return outputForm.model_name || '未选择'
+})
 const latestTrace = computed(() => (caseTrace.value.source ? caseTrace.value : pointTrace.value.source ? pointTrace.value : designTrace.value))
+const modeTextMap: Record<'simple' | 'standard' | 'deep', string> = {
+  simple: '快速',
+  standard: '标准',
+  deep: '深入',
+}
+const caseTypeTextMap: Record<'functional' | 'api' | 'ui' | 'generic', string> = {
+  functional: '功能用例',
+  api: '接口用例',
+  ui: '界面用例',
+  generic: '通用用例',
+}
+const caseStatusTextMap: Record<'new' | 'confirmed' | 'optimize_needed', string> = {
+  new: '新建',
+  confirmed: '已确认',
+  optimize_needed: '待优化',
+}
+
+const modeLabel = (value?: 'simple' | 'standard' | 'deep') => value ? modeTextMap[value] : '-'
+const caseTypeLabel = (value?: 'functional' | 'api' | 'ui' | 'generic') => value ? caseTypeTextMap[value] : '-'
+const caseStatusLabel = (value?: 'new' | 'confirmed' | 'optimize_needed') => value ? caseStatusTextMap[value] : '-'
+const sourceLabel = (value?: string) => {
+  if (!value) return '-'
+  if (value === 'ai') return 'AI生成'
+  if (value === 'fallback') return '回退生成'
+  return value
+}
+const fallbackReasonLabel = (value?: string | null) => {
+  if (!value) return '无'
+  if (value === 'invalid_json') return '模型返回格式异常'
+  if (value === 'request_failed') return '模型请求失败'
+  if (value === 'provider_unavailable') return '未配置可用模型'
+  return value
+}
+const knowledgeSourceLabel = (value?: string) => {
+  if (value === 'manual') return '手动录入'
+  if (value === 'file_import') return '文件导入'
+  return value || '-'
+}
 
 const stepItems = computed(() => {
   const hasKnowledge = Boolean(currentKnowledgeId.value)
@@ -564,7 +618,7 @@ const generateCases = async () => {
       output_count: outputForm.output_count,
     })
     caseTrace.value = { source: (response.data as any).source, fallback_reason: (response.data as any).fallback_reason, model_name: (response.data as any).model_name, model_raw_output: (response.data as any).model_raw_output }
-    ElMessage.success('测试用例已生成')
+    ElMessage.success(`测试用例已生成，本次生成 ${response.data.cases.length} 条`)
     await loadCases()
   } catch {
     ElMessage.error('生成测试用例失败')
@@ -615,20 +669,31 @@ const doExport = async (format: 'markdown' | 'json' | 'csv' | 'xlsx') => {
     ElMessage.warning('没有可导出的设计数据')
     return
   }
-  const response = await exportDesignCases(currentDesignId.value, format)
-  const mimeMap: Record<string, string> = {
-    markdown: 'text/markdown;charset=utf-8',
-    json: 'application/json;charset=utf-8',
-    csv: 'text/csv;charset=utf-8',
-    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  if (cases.value.length === 0) {
+    ElMessage.warning('当前没有可导出的测试用例，请先生成用例')
+    return
   }
-  const blob = new Blob([response.data], { type: mimeMap[format] || 'application/octet-stream' })
-  const url = URL.createObjectURL(blob)
-  const anchor = document.createElement('a')
-  anchor.href = url
-  anchor.download = `ai-test-design-${currentDesignId.value}.${format === 'markdown' ? 'md' : format}`
-  anchor.click()
-  URL.revokeObjectURL(url)
+  try {
+    const response = await exportDesignCases(currentDesignId.value, format)
+    const contentType = response.headers['content-type'] || 'application/octet-stream'
+    const disposition = response.headers['content-disposition'] || ''
+    const matchedName = disposition.match(/filename=\"?([^\";]+)\"?/)
+    const fallbackName = `ai-test-design-${currentDesignId.value}.${format === 'markdown' ? 'md' : format}`
+    const downloadName = matchedName?.[1] || fallbackName
+
+    const blob = new Blob([response.data], { type: contentType })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = downloadName
+    document.body.appendChild(anchor)
+    anchor.click()
+    anchor.remove()
+    URL.revokeObjectURL(url)
+    ElMessage.success(`已开始导出文件：${downloadName}`)
+  } catch {
+    ElMessage.error('导出失败，请稍后重试')
+  }
 }
 
 const refreshCurrentStep = async () => {

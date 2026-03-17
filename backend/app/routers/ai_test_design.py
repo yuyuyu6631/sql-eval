@@ -7,9 +7,10 @@ from typing import Optional, Literal, Any
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from openpyxl import Workbook
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 
 from app.database import get_db
 from app.models.ai_test_design import KnowledgeSource, DesignResult, AITestPoint, AITestCase
@@ -312,6 +313,7 @@ async def generate_test_cases(payload: CaseGenerateRequest, db: AsyncSession = D
 
     case_result = await _generate_cases_from_points(db, design, points, payload)
     generated = case_result["cases"]
+    await db.execute(delete(AITestCase).where(AITestCase.design_id == design.id))
     for item in generated:
         db.add(
             AITestCase(
@@ -415,10 +417,15 @@ async def export_cases(payload: ExportRequest, db: AsyncSession = Depends(get_db
     result = await db.execute(select(AITestCase).where(AITestCase.design_id == payload.design_id).order_by(AITestCase.id.asc()))
     rows = result.scalars().all()
     cases = [_case_to_dict(r) for r in rows]
+    if not cases:
+        raise HTTPException(status_code=400, detail="当前设计下暂无可导出的测试用例")
 
     if payload.format == "json":
-        content = json.dumps(cases, ensure_ascii=False, indent=2, default=str)
-        return StreamingResponse(io.StringIO(content), media_type="application/json")
+        content = json.dumps(cases, ensure_ascii=False, indent=2, default=str).encode("utf-8")
+        headers = {
+            "Content-Disposition": f'attachment; filename="ai-test-design-{payload.design_id}.json"'
+        }
+        return StreamingResponse(io.BytesIO(content), media_type="application/json; charset=utf-8", headers=headers)
 
     if payload.format == "csv":
         output = io.StringIO()
@@ -435,26 +442,98 @@ async def export_cases(payload: ExportRequest, db: AsyncSession = Depends(get_db
                 " | ".join(item.get("steps") or []),
                 item.get("expected_result") or "",
             ])
-        return StreamingResponse(io.StringIO(output.getvalue()), media_type="text/csv")
+        csv_content = ("\ufeff" + output.getvalue()).encode("utf-8-sig")
+        headers = {
+            "Content-Disposition": f'attachment; filename="ai-test-design-{payload.design_id}.csv"'
+        }
+        return StreamingResponse(io.BytesIO(csv_content), media_type="text/csv; charset=utf-8", headers=headers)
 
     if payload.format == "xlsx":
         wb = Workbook()
         ws = wb.active
-        ws.title = "AI_Test_Cases"
-        ws.append(["ID", "标题", "类型", "优先级", "状态", "前置条件", "步骤", "预期结果"])
-        for item in cases:
-            ws.append(
-                [
-                    item["id"],
-                    item["title"],
-                    item["case_type"],
-                    item["priority"],
-                    item["status"],
-                    item.get("precondition") or "",
-                    "\n".join(item.get("steps") or []),
-                    item.get("expected_result") or "",
-                ]
-            )
+        ws.title = "测试用例"
+
+        thin_side = Side(style="thin", color="D7DEEA")
+        table_border = Border(left=thin_side, right=thin_side, top=thin_side, bottom=thin_side)
+        title_fill = PatternFill("solid", fgColor="1F4E78")
+        meta_fill = PatternFill("solid", fgColor="EDF4FB")
+        header_fill = PatternFill("solid", fgColor="D9EAF7")
+        zebra_fill = PatternFill("solid", fgColor="F8FBFF")
+        white_fill = PatternFill("solid", fgColor="FFFFFF")
+        priority_fills = {
+            "P0": PatternFill("solid", fgColor="FDE2E1"),
+            "P1": PatternFill("solid", fgColor="FDF1D6"),
+            "P2": PatternFill("solid", fgColor="E7F4EA"),
+            "P3": PatternFill("solid", fgColor="EEF3F8"),
+        }
+        status_fills = {
+            "new": PatternFill("solid", fgColor="E8F1FB"),
+            "confirmed": PatternFill("solid", fgColor="E6F6EC"),
+            "optimize_needed": PatternFill("solid", fgColor="FFF1DE"),
+        }
+
+        ws.merge_cells("A1:H1")
+        ws["A1"] = f"AI测试设计用例导出 - 设计ID {payload.design_id}"
+        ws["A1"].font = Font(color="FFFFFF", bold=True, size=15)
+        ws["A1"].fill = title_fill
+        ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
+        ws.row_dimensions[1].height = 28
+
+        ws.merge_cells("A2:H2")
+        ws["A2"] = f"导出说明：当前工作簿按固定格式输出，可直接筛选、打印和二次补充。"
+        ws["A2"].font = Font(color="44546A", italic=True, size=10)
+        ws["A2"].fill = meta_fill
+        ws["A2"].alignment = Alignment(horizontal="left", vertical="center")
+
+        ws.merge_cells("A3:H3")
+        ws["A3"] = f"用例数量：{len(cases)} 条"
+        ws["A3"].font = Font(color="44546A", size=10)
+        ws["A3"].fill = meta_fill
+        ws["A3"].alignment = Alignment(horizontal="left", vertical="center")
+
+        header_row = 5
+        headers = ["ID", "标题", "类型", "优先级", "状态", "前置条件", "步骤", "预期结果"]
+        for col_idx, header in enumerate(headers, start=1):
+            cell = ws.cell(row=header_row, column=col_idx, value=header)
+            cell.font = Font(bold=True, color="1F1F1F")
+            cell.fill = header_fill
+            cell.border = table_border
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+
+        data_start_row = header_row + 1
+        for offset, item in enumerate(cases, start=0):
+            row_idx = data_start_row + offset
+            row_fill = zebra_fill if offset % 2 == 0 else white_fill
+            row_values = [
+                item["id"],
+                item["title"],
+                item["case_type"],
+                item["priority"],
+                item["status"],
+                item.get("precondition") or "无",
+                "\n".join(f"{idx}. {step}" for idx, step in enumerate(item.get("steps") or [], start=1)) or "无",
+                item.get("expected_result") or "无",
+            ]
+            for col_idx, value in enumerate(row_values, start=1):
+                cell = ws.cell(row=row_idx, column=col_idx, value=value)
+                cell.border = table_border
+                cell.alignment = Alignment(vertical="top", wrap_text=True)
+                cell.fill = row_fill
+            ws.cell(row=row_idx, column=4).fill = priority_fills.get(item["priority"], row_fill)
+            ws.cell(row=row_idx, column=5).fill = status_fills.get(item["status"], row_fill)
+            ws.row_dimensions[row_idx].height = 60
+
+        ws.freeze_panes = "A6"
+        ws.auto_filter.ref = f"A5:H{ws.max_row}"
+        ws.sheet_view.showGridLines = False
+        ws.column_dimensions["A"].width = 10
+        ws.column_dimensions["B"].width = 34
+        ws.column_dimensions["C"].width = 14
+        ws.column_dimensions["D"].width = 10
+        ws.column_dimensions["E"].width = 14
+        ws.column_dimensions["F"].width = 30
+        ws.column_dimensions["G"].width = 42
+        ws.column_dimensions["H"].width = 36
 
         stream = io.BytesIO()
         wb.save(stream)
@@ -485,7 +564,11 @@ async def export_cases(payload: ExportRequest, db: AsyncSession = Depends(get_db
             lines.append(f"  - {step}")
         lines.append(f"- 预期结果: {item.get('expected_result') or ''}")
         lines.append("")
-    return StreamingResponse(io.StringIO("\n".join(lines)), media_type="text/markdown")
+    markdown_content = "\n".join(lines).encode("utf-8")
+    headers = {
+        "Content-Disposition": f'attachment; filename="ai-test-design-{payload.design_id}.md"'
+    }
+    return StreamingResponse(io.BytesIO(markdown_content), media_type="text/markdown; charset=utf-8", headers=headers)
 
 
 async def _generate_design_summary(db: AsyncSession, knowledge: KnowledgeSource, payload: DesignGenerateRequest) -> dict[str, Any]:
@@ -693,7 +776,7 @@ async def _generate_cases_from_points(
             {
                 "id": None,
                 "point_id": p.id,
-                "title": f"[FALLBACK] {p.category}用例-{idx}",
+                "title": f"{p.category}用例-{idx}",
                 "precondition": "系统可访问，基础数据已准备",
                 "steps": [f"根据测试点执行：{p.content}", "观察系统返回与状态变化"],
                 "expected_result": "系统返回符合预期且无异常报错",
